@@ -2,19 +2,19 @@ apiVersion: tekton.dev/v1beta1
 kind: PipelineRun
 metadata:
   annotations:
-    build.appstudio.openshift.io/repo: https://github.com/BaxxiJ/partner-catalog-custom?rev={{revision}}
+    build.appstudio.openshift.io/repo: https://github.com/burrsitis/partner-catalog-custom?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "main"
+    pipelinesascode.tekton.dev/on-event: '[push]'
+    pipelinesascode.tekton.dev/on-target-branch: '[main]'
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: partner-catalog-custom
-    appstudio.openshift.io/component: partner-catalog-custom
+    appstudio.openshift.io/component: partner-catalog-custom-g6i5
     pipelines.appstudio.openshift.io/type: build
-  name: partner-catalog-custom-on-push
-  namespace: jbaxter1-tenant
+  name: partner-catalog-custom-g6i5-on-push
+  namespace: burrsitis-tenant
 spec:
   params:
   - name: dockerfile
@@ -22,7 +22,7 @@ spec:
   - name: git-url
     value: '{{repo_url}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/jbaxter1-tenant/partner-catalog-custom/partner-catalog-custom:{{revision}}
+    value: quay.io/redhat-user-workloads/burrsitis-tenant/partner-catalog-custom/partner-catalog-custom-g6i5:{{revision}}
   - name: path-context
     value: .
   - name: revision
@@ -34,14 +34,8 @@ spec:
       - name: IMAGE_URL
         value: $(tasks.build-container.results.IMAGE_URL)
       taskRef:
-        params:
-        - name: name
-          value: show-sbom
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-show-sbom:0.1@sha256:7db0af43dcebaeb33e34413148370e17078c30fd2fc78fb84c8941b444199f36
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-show-sbom:0.1@sha256:7db0af43dcebaeb33e34413148370e17078c30fd2fc78fb84c8941b444199f36
+        name: show-sbom
     - name: show-summary
       params:
       - name: pipelinerun-name
@@ -53,14 +47,8 @@ spec:
       - name: build-task-status
         value: $(tasks.build-container.status)
       taskRef:
-        params:
-        - name: name
-          value: summary
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-summary:0.1@sha256:243b13105967b251c1facd55159165809a9fa797215af613997ac6a16798db73
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-summary:0.1@sha256:9d43202379cb83358942ce2e936c0297e30faaa0c73811324318c6260a6edc25
+        name: summary
     params:
     - description: Source Repository URL
       name: git-url
@@ -73,13 +61,11 @@ spec:
       name: output-image
       type: string
     - default: .
-      description: Path to the source code of an application's component from where
-        to build image.
+      description: The path to your source code
       name: path-context
       type: string
     - default: Dockerfile
-      description: Path to the Dockerfile inside the context specified by parameter
-        path-context
+      description: Path to the Dockerfile
       name: dockerfile
       type: string
     - default: "false"
@@ -107,13 +93,13 @@ spec:
       name: java
       type: string
     - default: ""
+      description: Snyk Token Secret Name
+      name: snyk-secret
+      type: string
+    - default: ""
       description: Image tag expiration time, time values could be something like
         1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
-    - default: "false"
-      description: Build a source image.
-      name: build-source-image
-      type: string
     results:
     - description: ""
       name: IMAGE_URL
@@ -146,14 +132,8 @@ spec:
       - name: pipelinerun-uid
         value: $(context.pipelineRun.uid)
       taskRef:
-        params:
-        - name: name
-          value: init
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-init:0.1@sha256:26586a7ef08c3e86dfdaf0a5cc38dd3d70c4c02db1331b469caaed0a0f5b3d86
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-init:0.1@sha256:26586a7ef08c3e86dfdaf0a5cc38dd3d70c4c02db1331b469caaed0a0f5b3d86
+        name: init
     - name: clone-repository
       params:
       - name: url
@@ -163,14 +143,8 @@ spec:
       runAfter:
       - init
       taskRef:
-        params:
-        - name: name
-          value: git-clone
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-git-clone:0.1@sha256:d9e1ab10d72953e7a85dab69b8b96f5b41580a6d4026f77b6a5ba6f3ed227cc3
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-git-clone:0.1@sha256:1f84973a21aabea38434b1f663abc4cb2d86565a9c7aae1f90decb43a8fa48eb
+        name: git-clone
       when:
       - input: $(tasks.init.results.build)
         operator: in
@@ -188,19 +162,67 @@ spec:
       runAfter:
       - clone-repository
       taskRef:
-        params:
-        - name: name
-          value: prefetch-dependencies
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-prefetch-dependencies:0.1@sha256:ca366af4f096e94dad40a327a09328a5e4bed4d0292a213165861e9e19bf380e
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-prefetch-dependencies:0.1@sha256:c7b7f13d5d2a1545e95c2d56521327001d56ba54645900db41aa414607eff1e5
+        name: prefetch-dependencies
       when:
       - input: $(params.hermetic)
         operator: in
         values:
         - "true"
+      workspaces:
+      - name: source
+        workspace: workspace
+    - name: trusted-content
+      taskSpec:
+        results:
+        - name: CVE_SCAN_RESULT
+          description: trusted content scan result
+        - name: TEST_OUTPUT
+          description: trusted content output
+        workspaces:
+          - name: source
+        steps:
+          - name: run-redhat-crda-scan-step
+            image: quay.io/lrangine/crda-maven:11.0
+            workingDir: "$(workspaces.source.path)"
+            env:
+              - name: AUTH_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: crda-scan-secrets
+                    key: AUTH_TOKEN
+              - name: CONSENT_TELEMETRY
+                value: "false"
+              - name: CRDA_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: crda-scan-secrets
+                    key: CRDA_KEY
+              - name: HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: crda-scan-secrets
+                    key: HOST
+            script: |
+              #!/usr/bin/env bash
+              echo 'ready to scan'
+              /crda.sh pom.xml crda_scan_output.json
+              echo 'CRDA Scan is completed'
+              echo 'Printing scan results'
+              more crda_scan_output.json
+              echo 'Formatting the Task Results'
+              jq -rce \
+              '{vulnerabilities:{
+              critical: (.report."critical_vulnerabilities"),
+              high: (.report."high_vulnerabilities"),
+              medium: (.report."medium_vulnerabilities"),
+              low: (.report."low_vulnerabilities")
+              }}' crda_scan_output.json | tee $(results.CVE_SCAN_RESULT.path)
+              NOTE="Task $(context.task.name) completed: Refer to Tekton task result CVE_SCAN_RESULT for vulnerabilities scanned by RHTC."
+              TEST_OUTPUT="SUCCESS $NOTE"
+              echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+      runAfter:
+        - clone-repository
       workspaces:
       - name: source
         workspace: workspace
@@ -218,19 +240,11 @@ spec:
         value: $(params.prefetch-input)
       - name: IMAGE_EXPIRES_AFTER
         value: $(params.image-expires-after)
-      - name: COMMIT_SHA
-        value: $(tasks.clone-repository.results.commit)
       runAfter:
       - prefetch-dependencies
       taskRef:
-        params:
-        - name: name
-          value: buildah
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-buildah:0.1@sha256:fabd9af8e999f2d11b024fbe21dd5ed2dcf029b71b4d7e21de3b106c3d6ff74d
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-buildah:0.1@sha256:3ab862223beab868839476ed455b2530043ff8ce4453eb4618ab37c137bfe2d8
+        name: buildah
       when:
       - input: $(tasks.init.results.build)
         operator: in
@@ -238,35 +252,6 @@ spec:
         - "true"
       workspaces:
       - name: source
-        workspace: workspace
-    - name: build-source-image
-      params:
-      - name: BINARY_IMAGE
-        value: $(params.output-image)
-      - name: BASE_IMAGES
-        value: $(tasks.build-container.results.BASE_IMAGES_DIGESTS)
-      runAfter:
-      - build-container
-      taskRef:
-        params:
-        - name: name
-          value: source-build
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-source-build:0.1@sha256:e751a76622743cf51b35ba230768be9886535b7cf51491c2b8513979e7a577d8
-        - name: kind
-          value: task
-        resolver: bundles
-      when:
-      - input: $(tasks.init.results.build)
-        operator: in
-        values:
-        - "true"
-      - input: $(params.build-source-image)
-        operator: in
-        values:
-        - "true"
-      workspaces:
-      - name: workspace
         workspace: workspace
     - name: inspect-image
       params:
@@ -277,14 +262,8 @@ spec:
       runAfter:
       - build-container
       taskRef:
-        params:
-        - name: name
-          value: inspect-image
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-inspect-image:0.1@sha256:3a5d3f611240eb5b7b12799c2be22a71803df80dbc12cce2e1e2a252ab543423
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-inspect-image:0.1@sha256:7880c08c67e81f22d3de1d012905e5c9d333108188ceaea60b3a4c3857c2c4b7
+        name: inspect-image
       when:
       - input: $(params.skip-checks)
         operator: in
@@ -293,65 +272,146 @@ spec:
       workspaces:
       - name: source
         workspace: workspace
-    - name: deprecated-base-image-check
-      params:
-      - name: BASE_IMAGES_DIGESTS
-        value: $(tasks.build-container.results.BASE_IMAGES_DIGESTS)
+    - name: label-check
       runAfter:
-      - build-container
+      - inspect-image
       taskRef:
-        params:
-        - name: name
-          value: deprecated-image-check
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-deprecated-image-check:0.3@sha256:35e2708505614397ede771474a2e2d6f04e911efc46afae47ca4a63e2f6fc9a0
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-label-check:0.1@sha256:0c0739fdda24cd1e3587bbab9b07d4493efc21884baac7723f4b446e95bf1fd3
+        name: label-check
       when:
       - input: $(params.skip-checks)
         operator: in
         values:
         - "false"
-    - name: clair-scan
+      workspaces:
+      - name: workspace
+        workspace: workspace
+    - name: optional-label-check
       params:
-      - name: image-digest
-        value: $(tasks.build-container.results.IMAGE_DIGEST)
-      - name: image-url
+      - name: POLICY_NAMESPACE
+        value: optional_checks
+      runAfter:
+      - inspect-image
+      taskRef:
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-label-check:0.1@sha256:0c0739fdda24cd1e3587bbab9b07d4493efc21884baac7723f4b446e95bf1fd3
+        name: label-check
+      when:
+      - input: $(params.skip-optional)
+        operator: in
+        values:
+        - "false"
+      workspaces:
+      - name: workspace
+        workspace: workspace
+    - name: roxctl-scan
+      params:
+      - name: image 
         value: $(tasks.build-container.results.IMAGE_URL)
+      - name: image_digest
+        value: $(tasks.build-container.results.IMAGE_DIGEST)
       runAfter:
       - build-container
-      taskRef:
-        params:
-        - name: name
-          value: clair-scan
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-clair-scan:0.1@sha256:f6a5a24cb8faa590d4f3adc204a197fd89da1bcea365963af9ac66838c030816
-        - name: kind
-          value: task
-        resolver: bundles
-      when:
-      - input: $(params.skip-checks)
-        operator: in
-        values:
-        - "false"
+      taskSpec:
+        results:
+        - name: CVE_SCAN_RESULT
+          description: roxctl scan result
+        - name: TEST_OUTPUT
+          description: roxctl scan test output
+        steps:
+          - name: roxctl-image-scan
+            # image: redhat/ubi8
+            image: quay.io/lrangine/crda-maven:11.0
+            env:
+              - name: ROX_API_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: roxsecrets
+                    key: rox_api_token
+              - name: ROX_CENTRAL_ENDPOINT 
+                valueFrom:
+                  secretKeyRef:
+                    name: roxsecrets
+                    key: rox_central_endpoint
+            script: |
+              #!/usr/bin/env bash
+              echo "ROX_CENTRAL_ENDPOINT: " + $ROX_CENTRAL_ENDPOINT
+              echo "ROX_API_TOKEN: " + $ROX_API_TOKEN
+              jq --version
+              echo "jq version ^"
+              echo "Getting roxctl"
+              curl -k -L -H "Authorization: Bearer $ROX_API_TOKEN" https://$ROX_CENTRAL_ENDPOINT/api/cli/download/roxctl-linux --output ./roxctl
+              chmod +x ./roxctl 
+              echo "## Scanning image $(params.image)@$(params.image_digest)"
+              ./roxctl image scan --insecure-skip-tls-verify -e $ROX_CENTRAL_ENDPOINT --image $(params.image)@$(params.image_digest) --output json  > roxctl_output.json
+              more roxctl_output.json
+              jq -rce \
+              '{vulnerabilities:{
+              critical: (.result.summary.CRITICAL),
+              high: (.result.summary.IMPORTANT),
+              medium: (.result.summary.MODERATE),
+              low: (.result.summary.LOW)
+              }}' roxctl_output.json | tee $(results.CVE_SCAN_RESULT.path)              
+              echo "## Go to https://$ROX_CENTRAL_ENDPOINT/main/vulnerability-management/image/$(params.image_digest) to check more info"
+              TEST_OUTPUT="Details in the logs"
+              echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+    - name: roxctl-check
+      params:
+      - name: image 
+        value: $(tasks.build-container.results.IMAGE_URL)
+      - name: image_digest
+        value: $(tasks.build-container.results.IMAGE_DIGEST)
+      runAfter:
+      - roxctl-scan
+      taskSpec:
+        results:
+        - name: TEST_OUTPUT
+          description: roxctl check test output
+        steps:
+          - name: roxctl-image-scan
+            # image: redhat/ubi8
+            image: quay.io/lrangine/crda-maven:11.0
+            env:
+              - name: ROX_API_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: roxsecrets
+                    key: rox_api_token
+              - name: ROX_CENTRAL_ENDPOINT 
+                valueFrom:
+                  secretKeyRef:
+                    name: roxsecrets
+                    key: rox_central_endpoint
+            script: |
+              #!/usr/bin/env bash
+              echo "ROX_CENTRAL_ENDPOINT: " + $ROX_CENTRAL_ENDPOINT
+              echo "ROX_API_TOKEN: " + $ROX_API_TOKEN
+              jq --version
+              echo "jq version ^"
+              echo "Getting roxctl"
+              curl -k -L -H "Authorization: Bearer $ROX_API_TOKEN" https://$ROX_CENTRAL_ENDPOINT/api/cli/download/roxctl-linux --output ./roxctl
+              chmod +x ./roxctl 
+              echo "## Checking image $(params.image)@$(params.image_digest)"
+              ./roxctl image check --insecure-skip-tls-verify -e $ROX_CENTRAL_ENDPOINT --image $(params.image)@$(params.image_digest)
+              TEST_OUTPUT="Details in the logs"
+              echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)    
     - name: sast-snyk-check
+      params:
+      - name: SNYK_SECRET
+        value: $(params.snyk-secret)
       runAfter:
       - clone-repository
       taskRef:
-        params:
-        - name: name
-          value: sast-snyk-check
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-sast-snyk-check:0.1@sha256:edd4ba638b71de52c2662abd3e93fd876e6e75cd07b162d13fae014d3a1a1fac
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-sast-snyk-check:0.1@sha256:ce73b27a7a345a99ff88a730388d938243678af42704da8db69387bdf547b8ad
+        name: sast-snyk-check
       when:
       - input: $(params.skip-checks)
         operator: in
         values:
         - "false"
+      - input: $(params.snyk-secret)
+        operator: notin
+        values:
+        - ""
       workspaces:
       - name: workspace
         workspace: workspace
@@ -364,14 +424,8 @@ spec:
       runAfter:
       - build-container
       taskRef:
-        params:
-        - name: name
-          value: clamav-scan
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-clamav-scan:0.1@sha256:b7d194547892219c663c4414d3bbb18e0c1798353e3922e4dc2b63ef9169adb9
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-clamav-scan:0.1@sha256:884697be1f7377a5b680aa79629d183c541277badeac13573d497233986ebfb7
+        name: clamav-scan
       when:
       - input: $(params.skip-checks)
         operator: in
@@ -386,14 +440,8 @@ spec:
       runAfter:
       - build-container
       taskRef:
-        params:
-        - name: name
-          value: sbom-json-check
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-sbom-json-check:0.1@sha256:0ca48e1dffde39efe97b3252386f529241d6b276fe812a88774a9f37fc45f742
-        - name: kind
-          value: task
-        resolver: bundles
+        bundle: quay.io/redhat-appstudio-tekton-catalog/task-sbom-json-check:0.1@sha256:d8d114daa23c299aefecc9b5c8440f6cf3106635c92788b56208b41358e8f819
+        name: sbom-json-check
       when:
       - input: $(params.skip-checks)
         operator: in
